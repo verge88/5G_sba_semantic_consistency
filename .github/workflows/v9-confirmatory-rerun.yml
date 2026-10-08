@@ -1,0 +1,57 @@
+name: V9 Confirmatory Experiment Rerun
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/v9-confirmatory-rerun.yml"
+
+jobs:
+  confirmatory:
+    if: github.event.head_commit.message == 'Run v9 confirmatory experiment on GitHub Actions'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONUNBUFFERED: "1"
+      OUT_DIR: runs/sba_semantic_v9/confirmatory_52_61_github_rerun
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas
+
+      - name: Run v9 confirmatory experiment
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "$OUT_DIR"
+          python 5g/run_semantic_v9_confirmatory.py \
+            --seeds 52 53 54 55 56 57 58 59 60 61 \
+            --calib-windows 1200 \
+            --eval-windows 200 \
+            --operational-windows 200 \
+            --state-attack-windows 100 \
+            --hidden 5 \
+            --target-fpr 0.01 \
+            --bootstrap 5000 \
+            --permutations 10000 \
+            --out-dir "$OUT_DIR" 2>&1 | tee "$OUT_DIR/run.log"
+
+      - name: Upload experiment results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v9-confirmatory-rerun-results
+          path: runs/sba_semantic_v9/confirmatory_52_61_github_rerun
+          if-no-files-found: warn
+          retention-days: 30
