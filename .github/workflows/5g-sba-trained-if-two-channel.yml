@@ -1,0 +1,55 @@
+name: 5g-sba-trained-if-two-channel
+
+on:
+  push:
+    branches:
+      - experiment/sba-if-two-channel-20261009
+    paths:
+      - ".github/workflows/5g-sba-trained-if-two-channel.yml"
+      - "5g/run_semantic_if_two_channel.py"
+      - "tests/test_sba_semantic_if_two_channel.py"
+      - "experiments/5g_sba_if_two_channel/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  train-and-evaluate:
+    name: Train normal-only IF and compare calibrated two-channel detectors
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install "numpy>=1.26,<3" "pandas>=2.1,<3" "scikit-learn>=1.5,<2"
+      - name: Check feature/exclusion/calibration tests
+        run: |
+          python -m unittest discover -s tests -p "test_sba_semantic_if_two_channel.py" -v
+          python -m unittest discover -s tests -p "test_sba_semantic_v9_provenance.py" -v
+          python -m unittest discover -s tests -p "test_sba_semantic_loo_falsification.py" -v
+      - name: Run five-seed frozen trained-IF experiment
+        run: |
+          set -o pipefail
+          python 5g/run_semantic_if_two_channel.py \
+            --seeds 221 222 223 224 225 \
+            --train 400 \
+            --rank-calib 300 \
+            --joint-calib 300 \
+            --eval 250 \
+            --alpha 0.01 \
+            --out-dir runs/sba_if_two_channel/221_225 \
+            2>&1 | tee if_two_channel_experiment.log
+      - name: Upload frozen plan, per-seed and aggregate results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sba-if-two-channel-221-225
+          path: |
+            runs/sba_if_two_channel/221_225/
+            if_two_channel_experiment.log
+          if-no-files-found: warn
+          retention-days: 30
